@@ -38,10 +38,12 @@ services:
       MYSQL_DATABASE: notes
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "3306:3306"
     networks:
       - app-net
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
 networks:
   app-net:
