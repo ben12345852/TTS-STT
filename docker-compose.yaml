@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: ai_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app
+    environment:
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=example
+      - DB_NAME=notes
+    depends_on:
+      - db
+    networks:
+      - app-net
+
+  frontend:
+    build: ./frontend
+    container_name: ai_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host"]
+    networks:
+      - app-net
+
+  db:
+    image: mysql:8.0
+    container_name: ai_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: notes
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - app-net
+
+networks:
+  app-net:
+
+volumes:
+  mysql-data:
