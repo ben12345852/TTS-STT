@@ -1,0 +1,632 @@
+<script setup>
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
+
+const activeTab = ref('transcript')
+
+// Beispiel-Daten (später von API basierend auf route.params.id)
+// Audio Player State
+const audioElement = ref(null)
+const isPlaying = ref(false)
+const currentTime = ref(0)
+const duration = ref(0)
+const volume = ref(1)
+
+const note = ref({
+  id: 1,
+  title: 'Meeting mit Team',
+  created_at: '2025-11-15T10:30:00',
+  tags: ['Meeting', 'Arbeit'],
+  audio_url: '/demo-audio.mp3', // Placeholder - später von API
+  transcript: `Heute haben wir uns getroffen, um den aktuellen Projektstatus zu besprechen. 
+  
+Das Team hat große Fortschritte gemacht. Die neue Funktion für die Spracherkennung ist fast fertig. Maria hat die Benutzeroberfläche optimiert und Thomas hat die Backend-Integration abgeschlossen.
+
+Wir haben beschlossen, die Beta-Version nächste Woche zu veröffentlichen. Alle Teammitglieder sollen ihre Aufgaben bis Freitag abschließen.
+
+Nächstes Meeting ist am Montag um 10 Uhr. Nicht vergessen: Präsentation vorbereiten für den Kunden.`,
+  
+  summary: `**Meeting-Zusammenfassung:**
+
+• Projektstatus wurde besprochen
+• Spracherkennungs-Feature ist fast fertig
+• UI-Optimierungen von Maria durchgeführt
+• Backend-Integration von Thomas abgeschlossen
+• Beta-Release für nächste Woche geplant
+• Deadline: Freitag für alle Aufgaben
+• Nächstes Meeting: Montag, 10 Uhr
+• To-Do: Kundenpräsentation vorbereiten`
+})
+
+function goBack() {
+  router.push('/')
+}
+
+function formatDateTime(dateString) {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function playAudio() {
+  // TODO: TTS implementieren
+  console.log('Audio abspielen')
+}
+
+function editNote() {
+  // TODO: Edit-Modus implementieren
+  console.log('Notiz bearbeiten')
+}
+
+function deleteNote() {
+  // TODO: Löschen implementieren
+  if (confirm('Notiz wirklich löschen?')) {
+    console.log('Notiz löschen')
+    router.push('/')
+  }
+}
+
+function exportNote() {
+  // TODO: Export-Dialog öffnen
+  console.log('Notiz exportieren')
+}
+
+// Audio Player Functions
+function togglePlayPause() {
+  if (!audioElement.value) return
+  
+  if (isPlaying.value) {
+    audioElement.value.pause()
+  } else {
+    audioElement.value.play()
+  }
+  isPlaying.value = !isPlaying.value
+}
+
+function onTimeUpdate() {
+  if (audioElement.value) {
+    currentTime.value = audioElement.value.currentTime
+  }
+}
+
+function onLoadedMetadata() {
+  if (audioElement.value) {
+    duration.value = audioElement.value.duration
+  }
+}
+
+function onEnded() {
+  isPlaying.value = false
+  currentTime.value = 0
+}
+
+function seekTo(event) {
+  const rect = event.currentTarget.getBoundingClientRect()
+  const percent = (event.clientX - rect.left) / rect.width
+  const newTime = percent * duration.value
+  
+  if (audioElement.value) {
+    audioElement.value.currentTime = newTime
+    currentTime.value = newTime
+  }
+}
+
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00'
+  
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+function changeVolume(event) {
+  const newVolume = parseFloat(event.target.value)
+  volume.value = newVolume
+  if (audioElement.value) {
+    audioElement.value.volume = newVolume
+  }
+}
+</script>
+
+<template>
+  <div class="container note-detail">
+    <!-- Header mit Navigation -->
+    <div class="detail-header">
+      <button class="btn-back" @click="goBack">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        Zurück
+      </button>
+
+      <div class="action-buttons">
+        <button class="btn btn-secondary" @click="playAudio" title="Zusammenfassung vorlesen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+        </button>
+        <button class="btn btn-secondary" @click="editNote" title="Bearbeiten">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+        <button class="btn btn-secondary" @click="exportNote" title="Exportieren">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+        <button class="btn btn-secondary delete-btn" @click="deleteNote" title="Löschen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Note Info -->
+    <div class="note-info">
+      <h1 class="note-title-detail">{{ note.title }}</h1>
+      <div class="note-meta">
+        <span class="meta-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          {{ formatDateTime(note.created_at) }}
+        </span>
+        <div class="tags-detail">
+          <span v-for="tag in note.tags" :key="tag" class="tag">{{ tag }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audio Player -->
+    <div class="audio-player-container">
+      <div class="audio-player">
+        <audio
+          ref="audioElement"
+          :src="note.audio_url"
+          @timeupdate="onTimeUpdate"
+          @loadedmetadata="onLoadedMetadata"
+          @ended="onEnded"
+        ></audio>
+
+        <button class="play-button" @click="togglePlayPause">
+          <svg v-if="!isPlaying" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+        </button>
+
+        <div class="time-display">{{ formatTime(currentTime) }}</div>
+
+        <div class="progress-bar-container" @click="seekTo">
+          <div class="progress-bar">
+            <div 
+              class="progress-fill" 
+              :style="{ width: duration > 0 ? (currentTime / duration * 100) + '%' : '0%' }"
+            ></div>
+            <div 
+              class="progress-handle" 
+              :style="{ left: duration > 0 ? (currentTime / duration * 100) + '%' : '0%' }"
+            ></div>
+          </div>
+        </div>
+
+        <div class="time-display">{{ formatTime(duration) }}</div>
+
+        <div class="volume-control">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path v-if="volume > 0.5" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path v-if="volume > 0" d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+          <input 
+            type="range" 
+            min="0" 
+            max="1" 
+            step="0.01" 
+            :value="volume"
+            @input="changeVolume"
+            class="volume-slider"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+      <div class="tabs">
+        <button 
+          :class="['tab', { active: activeTab === 'transcript' }]"
+          @click="activeTab = 'transcript'"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          Transkription
+        </button>
+        <button 
+          :class="['tab', { active: activeTab === 'summary' }]"
+          @click="activeTab = 'summary'"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
+          </svg>
+          Zusammenfassung
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content">
+        <!-- Transkription -->
+        <div v-if="activeTab === 'transcript'" class="content-panel fade-in">
+          <div class="panel-header">
+            <h3>Vollständige Transkription</h3>
+            <span class="word-count">{{ note.transcript.split(' ').length }} Wörter</span>
+          </div>
+          <div class="text-content">
+            {{ note.transcript }}
+          </div>
+        </div>
+
+        <!-- Zusammenfassung -->
+        <div v-if="activeTab === 'summary'" class="content-panel fade-in">
+          <div class="panel-header">
+            <h3>KI-Zusammenfassung</h3>
+            <button class="btn btn-primary btn-sm" @click="playAudio">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Vorlesen
+            </button>
+          </div>
+          <div class="text-content summary-content">
+            {{ note.summary }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.note-detail {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.btn-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-back:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.delete-btn:hover {
+  background-color: var(--danger);
+  color: white;
+}
+
+.note-info {
+  margin-bottom: 2rem;
+}
+
+.note-title-detail {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.note-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.meta-item svg {
+  color: var(--text-muted);
+}
+
+.tags-detail {
+  display: flex;
+  gap: 8px;
+}
+
+.tag {
+  background-color: var(--bg-tertiary);
+  color: var(--accent-light);
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Audio Player */
+.audio-player-container {
+  margin-bottom: 2rem;
+}
+
+.audio-player {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.play-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.play-button:hover {
+  background-color: var(--accent-hover);
+  transform: scale(1.05);
+}
+
+.play-button:active {
+  transform: scale(0.95);
+}
+
+.time-display {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 45px;
+  text-align: center;
+}
+
+.progress-bar-container {
+  flex: 1;
+  cursor: pointer;
+  padding: 10px 0;
+}
+
+.progress-bar {
+  height: 6px;
+  background-color: var(--bg-tertiary);
+  border-radius: 3px;
+  position: relative;
+  overflow: visible;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  border-radius: 3px;
+  transition: width 0.1s linear;
+  position: relative;
+}
+
+.progress-handle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  background-color: var(--accent-light);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: left 0.1s linear;
+  cursor: grab;
+}
+
+.progress-handle:active {
+  cursor: grabbing;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.volume-control svg {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.volume-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  background: var(--accent-light);
+  transform: scale(1.2);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.volume-slider::-moz-range-thumb:hover {
+  background: var(--accent-light);
+  transform: scale(1.2);
+}
+
+.tabs-container {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-tertiary);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 3px solid transparent;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+
+.tab.active {
+  color: var(--accent-light);
+  border-bottom-color: var(--accent);
+  background-color: var(--bg-secondary);
+}
+
+.tab svg {
+  flex-shrink: 0;
+}
+
+.tab-content {
+  padding: 2rem;
+}
+
+.content-panel {
+  animation: fadeIn 0.3s ease;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.word-count {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+}
+
+.text-content {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.summary-content {
+  font-weight: 400;
+}
+</style>
