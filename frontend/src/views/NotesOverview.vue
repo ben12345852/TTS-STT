@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { notesApi } from '../api/notes'
+import CreateNoteModal from '../components/CreateNoteModal.vue'
 
 const router = useRouter()
 
@@ -10,6 +11,7 @@ const searchQuery = ref('')
 const filteredNotes = ref([])
 const loading = ref(true)
 const error = ref(null)
+const showCreateModal = ref(false)
 
 // Notizen von API laden
 async function loadNotes() {
@@ -69,8 +71,11 @@ function openNote(noteId) {
 }
 
 function createNewNote() {
-  // TODO: Implementieren
-  console.log('Neue Notiz erstellen')
+  showCreateModal.value = true
+}
+
+function onNoteCreated() {
+  loadNotes()
 }
 
 function searchNotes() {
@@ -170,6 +175,13 @@ function searchNotes() {
       <p>Erstelle deine erste Notiz per Sprachaufnahme</p>
     </div>
     </template>
+
+    <!-- Create Note Modal -->
+    <CreateNoteModal 
+      v-if="showCreateModal"
+      @close="showCreateModal = false"
+      @created="onNoteCreated"
+    />
   </div>
 </template>
 
