@@ -1,40 +1,36 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { notesApi } from '../api/notes'
 
 const router = useRouter()
 
-// Beispiel-Daten (später von API)
-const notes = ref([
-  {
-    id: 1,
-    title: 'Meeting mit Team',
-    summary: 'Projektstatus besprochen, nächste Schritte definiert...',
-    created_at: '2025-11-15T10:30:00',
-    tags: ['Meeting', 'Arbeit'],
-    duration: 327 // Sekunden
-  },
-  {
-    id: 2,
-    title: 'Einkaufsliste',
-    summary: 'Milch, Brot, Eier, Käse nicht vergessen...',
-    created_at: '2025-11-14T16:20:00',
-    tags: ['Privat'],
-    duration: 45
-  },
-  {
-    id: 3,
-    title: 'Projektideen',
-    summary: 'Neue App-Konzepte für mobile Anwendungen...',
-    created_at: '2025-11-13T09:15:00',
-    tags: ['Kreativ', 'Arbeit'],
-    duration: 158
-  }
-])
-
+const notes = ref([])
 const searchQuery = ref('')
+const filteredNotes = ref([])
+const loading = ref(true)
+const error = ref(null)
 
-const filteredNotes = ref(notes.value)
+// Notizen von API laden
+async function loadNotes() {
+  try {
+    loading.value = true
+    error.value = null
+    const data = await notesApi.getAllNotes()
+    notes.value = data
+    filteredNotes.value = data
+  } catch (err) {
+    error.value = 'Fehler beim Laden der Notizen'
+    console.error('Fehler:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Beim Component-Mount Notizen laden
+onMounted(() => {
+  loadNotes()
+})
 
 function formatDate(dateString) {
   const date = new Date(dateString)
@@ -86,14 +82,32 @@ function searchNotes() {
   const query = searchQuery.value.toLowerCase()
   filteredNotes.value = notes.value.filter(note => 
     note.title.toLowerCase().includes(query) ||
-    note.summary.toLowerCase().includes(query) ||
-    note.tags.some(tag => tag.toLowerCase().includes(query))
+    (note.summary && note.summary.toLowerCase().includes(query))
   )
 }
 </script>
 
 <template>
   <div class="container notes-overview">
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Lade Notizen...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <h3>{{ error }}</h3>
+      <button class="btn btn-primary" @click="loadNotes">Erneut versuchen</button>
+    </div>
+
+    <!-- Content -->
+    <template v-else>
     <div class="page-header">
       <div>
         <h2 class="page-title">Meine Notizen</h2>
@@ -137,21 +151,12 @@ function searchNotes() {
         <p class="note-summary">{{ note.summary }}</p>
         
         <div class="note-footer">
-          <div class="note-tags">
-            <span 
-              v-for="tag in note.tags" 
-              :key="tag"
-              class="tag"
-            >
-              {{ tag }}
-            </span>
-          </div>
           <div class="note-duration">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            {{ formatDuration(note.duration) }}
+            {{ formatDuration(note.audio_duration) }}
           </div>
         </div>
       </div>
@@ -164,6 +169,7 @@ function searchNotes() {
       <h3>Keine Notizen gefunden</h3>
       <p>Erstelle deine erste Notiz per Sprachaufnahme</p>
     </div>
+    </template>
   </div>
 </template>
 
@@ -272,26 +278,10 @@ function searchNotes() {
 
 .note-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
   margin-top: auto;
-}
-
-.note-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex: 1;
-}
-
-.tag {
-  background-color: var(--bg-tertiary);
-  color: var(--accent-light);
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 0.8rem;
-  font-weight: 500;
 }
 
 .note-duration {
@@ -306,6 +296,37 @@ function searchNotes() {
 
 .note-duration svg {
   flex-shrink: 0;
+}
+
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--bg-tertiary);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-state svg {
+  color: var(--danger);
+  margin-bottom: 1rem;
+}
+
+.error-state h3 {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
 }
 
 .empty-state {

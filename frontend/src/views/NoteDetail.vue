@@ -1,13 +1,15 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { notesApi } from '../api/notes'
 
 const router = useRouter()
 const route = useRoute()
 
 const activeTab = ref('transcript')
+const loading = ref(true)
+const error = ref(null)
 
-// Beispiel-Daten (später von API basierend auf route.params.id)
 // Audio Player State
 const audioElement = ref(null)
 const isPlaying = ref(false)
@@ -15,30 +17,26 @@ const currentTime = ref(0)
 const duration = ref(0)
 const volume = ref(1)
 
-const note = ref({
-  id: 1,
-  title: 'Meeting mit Team',
-  created_at: '2025-11-15T10:30:00',
-  tags: ['Meeting', 'Arbeit'],
-  audio_url: '/demo-audio.mp3', // Placeholder - später von API
-  transcript: `Heute haben wir uns getroffen, um den aktuellen Projektstatus zu besprechen. 
-  
-Das Team hat große Fortschritte gemacht. Die neue Funktion für die Spracherkennung ist fast fertig. Maria hat die Benutzeroberfläche optimiert und Thomas hat die Backend-Integration abgeschlossen.
+const note = ref(null)
 
-Wir haben beschlossen, die Beta-Version nächste Woche zu veröffentlichen. Alle Teammitglieder sollen ihre Aufgaben bis Freitag abschließen.
+// Notiz von API laden
+async function loadNote() {
+  try {
+    loading.value = true
+    error.value = null
+    const data = await notesApi.getNote(route.params.id)
+    note.value = data
+  } catch (err) {
+    error.value = 'Fehler beim Laden der Notiz'
+    console.error('Fehler:', err)
+  } finally {
+    loading.value = false
+  }
+}
 
-Nächstes Meeting ist am Montag um 10 Uhr. Nicht vergessen: Präsentation vorbereiten für den Kunden.`,
-  
-  summary: `**Meeting-Zusammenfassung:**
-
-• Projektstatus wurde besprochen
-• Spracherkennungs-Feature ist fast fertig
-• UI-Optimierungen von Maria durchgeführt
-• Backend-Integration von Thomas abgeschlossen
-• Beta-Release für nächste Woche geplant
-• Deadline: Freitag für alle Aufgaben
-• Nächstes Meeting: Montag, 10 Uhr
-• To-Do: Kundenpräsentation vorbereiten`
+// Beim Component-Mount Notiz laden
+onMounted(() => {
+  loadNote()
 })
 
 function goBack() {
@@ -69,8 +67,14 @@ function editNote() {
 function deleteNote() {
   // TODO: Löschen implementieren
   if (confirm('Notiz wirklich löschen?')) {
-    console.log('Notiz löschen')
-    router.push('/')
+    notesApi.deleteNote(route.params.id)
+      .then(() => {
+        router.push('/')
+      })
+      .catch(err => {
+        console.error('Fehler beim Löschen:', err)
+        alert('Fehler beim Löschen der Notiz')
+      })
   }
 }
 
@@ -138,6 +142,25 @@ function changeVolume(event) {
 
 <template>
   <div class="container note-detail">
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Lade Notiz...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <h3>{{ error }}</h3>
+      <button class="btn btn-primary" @click="loadNote">Erneut versuchen</button>
+    </div>
+
+    <!-- Content -->
+    <template v-else-if="note">
     <!-- Header mit Navigation -->
     <div class="detail-header">
       <button class="btn-back" @click="goBack">
@@ -189,18 +212,15 @@ function changeVolume(event) {
           </svg>
           {{ formatDateTime(note.created_at) }}
         </span>
-        <div class="tags-detail">
-          <span v-for="tag in note.tags" :key="tag" class="tag">{{ tag }}</span>
-        </div>
       </div>
     </div>
 
     <!-- Audio Player -->
-    <div class="audio-player-container">
+    <div class="audio-player-container" v-if="note.audio_path">
       <div class="audio-player">
         <audio
           ref="audioElement"
-          :src="note.audio_url"
+          :src="note.audio_path"
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onLoadedMetadata"
           @ended="onEnded"
@@ -312,6 +332,7 @@ function changeVolume(event) {
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -387,18 +408,35 @@ function changeVolume(event) {
   color: var(--text-muted);
 }
 
-.tags-detail {
-  display: flex;
-  gap: 8px;
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
 }
 
-.tag {
-  background-color: var(--bg-tertiary);
-  color: var(--accent-light);
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 0.85rem;
-  font-weight: 500;
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--bg-tertiary);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-state svg {
+  color: var(--danger);
+  margin-bottom: 1rem;
+}
+
+.error-state h3 {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
 }
 
 /* Audio Player */
