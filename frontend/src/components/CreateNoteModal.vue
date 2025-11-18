@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { notesApi } from '../api/notes'
 
 const router = useRouter()
 const emit = defineEmits(['close', 'created'])
@@ -13,6 +14,7 @@ const recordingInterval = ref(null)
 const title = ref('')
 const textContent = ref('')
 const error = ref(null)
+const isSaving = ref(false)
 
 // Aufnahme starten
 async function startRecording() {
@@ -72,10 +74,37 @@ async function saveNote() {
     return
   }
   
-  // TODO: Audio und/oder Text an Backend senden
-  // Für jetzt nur schließen
-  emit('created')
-  emit('close')
+  isSaving.value = true
+  error.value = null
+  
+  try {
+    // FormData für Datei-Upload erstellen
+    const formData = new FormData()
+    formData.append('title', title.value)
+    
+    if (textContent.value.trim()) {
+      formData.append('text_content', textContent.value)
+    }
+    
+    if (audioBlob.value) {
+      // Audio-Datei hinzufügen
+      const audioFile = new File([audioBlob.value], 'recording.webm', { type: 'audio/webm' })
+      formData.append('audio_file', audioFile)
+      formData.append('audio_duration', recordingTime.value.toString())
+    }
+    
+    // An Backend senden
+    await notesApi.createNote(formData)
+    
+    // Erfolgreich erstellt
+    emit('created')
+    emit('close')
+  } catch (err) {
+    console.error('Fehler beim Speichern:', err)
+    error.value = 'Fehler beim Speichern der Notiz'
+  } finally {
+    isSaving.value = false
+  }
 }
 
 function formatTime(seconds) {
@@ -205,16 +234,17 @@ function formatTime(seconds) {
 
         <!-- Action Buttons -->
         <div class="modal-actions">
-          <button class="btn btn-secondary" @click="$emit('close')">
+          <button class="btn btn-secondary" @click="$emit('close')" :disabled="isSaving">
             Abbrechen
           </button>
-          <button class="btn btn-primary" @click="saveNote">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button class="btn btn-primary" @click="saveNote" :disabled="isSaving">
+            <svg v-if="!isSaving" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
               <polyline points="7 3 7 8 15 8"></polyline>
             </svg>
-            Notiz speichern
+            <span v-if="isSaving" class="spinner"></span>
+            {{ isSaving ? 'Speichert...' : 'Notiz speichern' }}
           </button>
         </div>
       </div>
@@ -450,5 +480,24 @@ function formatTime(seconds) {
   justify-content: flex-end;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

@@ -1,8 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 from database import db
+import os
+from datetime import datetime
 
 app = FastAPI(title="Sprach-Notizen API")
+
+# Upload-Ordner erstellen
+UPLOAD_DIR = "/app/uploads/audio"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # CORS für Frontend
 app.add_middleware(
@@ -52,3 +59,54 @@ def get_note(note_id: int):
     if not note:
         return {"error": "Notiz nicht gefunden"}, 404
     return note
+
+@app.post("/api/notes")
+async def create_note(
+    title: str = Form(...),
+    text_content: Optional[str] = Form(None),
+    audio_duration: Optional[int] = Form(0),
+    audio_file: Optional[UploadFile] = File(None)
+):
+    """Neue Notiz erstellen mit Audio und/oder Text"""
+    
+    audio_path = None
+    audio_mime_type = None
+    
+    # Audio-Datei speichern, falls vorhanden
+    if audio_file:
+        # Dateiname generieren
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"note-{timestamp}.webm"
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        
+        # Datei speichern
+        with open(file_path, "wb") as f:
+            content = await audio_file.read()
+            f.write(content)
+        
+        audio_path = f"/uploads/audio/{filename}"
+        audio_mime_type = audio_file.content_type
+        
+        # Audio in Datenbank als BLOB speichern
+        query = """
+            INSERT INTO notes (title, transcript, audio_data, audio_mime_type, audio_duration, status)
+            VALUES (%s, %s, %s, %s, %s, 'processing')
+        """
+        note_id = db.execute_query(query, (title, text_content or "", content, audio_mime_type, audio_duration))
+    else:
+        # Nur Text-Notiz
+        query = """
+            INSERT INTO notes (title, transcript, audio_duration, status)
+            VALUES (%s, %s, %s, 'completed')
+        """
+        note_id = db.execute_query(query, (title, text_content or "", 0))
+    
+    # Erstellte Notiz zurückgeben
+    return {
+        "id": note_id,
+        "title": title,
+        "transcript": text_content,
+        "audio_path": audio_path,
+        "audio_duration": audio_duration,
+        "status": "processing" if audio_file else "completed"
+    }

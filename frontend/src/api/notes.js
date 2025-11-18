@@ -22,9 +22,13 @@ export const notesApi = {
     return response.data
   },
 
-  // Notiz erstellen
-  createNote: async (noteData) => {
-    const response = await api.post('/api/notes', noteData)
+  // Notiz erstellen (mit FormData für Audio-Upload)
+  createNote: async (formData) => {
+    const response = await api.post('/api/notes', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
     return response.data
   },
 
