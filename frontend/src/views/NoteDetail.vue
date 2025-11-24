@@ -6,7 +6,7 @@ import { notesApi } from '../api/notes'
 const router = useRouter()
 const route = useRoute()
 
-const activeTab = ref('transcript')
+const activeTab = ref(null)
 const loading = ref(true)
 const error = ref(null)
 
@@ -26,6 +26,17 @@ async function loadNote() {
     error.value = null
     const data = await notesApi.getNote(route.params.id)
     note.value = data
+    
+    // Standard-Tab setzen basierend auf verfügbaren Daten
+    if (!activeTab.value) {
+      if (data.transcript) {
+        activeTab.value = 'transcript'
+      } else if (data.manual_notes) {
+        activeTab.value = 'manual_notes'
+      } else if (data.summary) {
+        activeTab.value = 'summary'
+      }
+    }
   } catch (err) {
     error.value = 'Fehler beim Laden der Notiz'
     console.error('Fehler:', err)
@@ -216,11 +227,11 @@ function changeVolume(event) {
     </div>
 
     <!-- Audio Player -->
-    <div class="audio-player-container" v-if="note.audio_path">
+    <div class="audio-player-container" v-if="note.audio_url">
       <div class="audio-player">
         <audio
           ref="audioElement"
-          :src="note.audio_path"
+          :src="`http://localhost:8000${note.audio_url}`"
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onLoadedMetadata"
           @ended="onEnded"
@@ -278,6 +289,7 @@ function changeVolume(event) {
         <button 
           :class="['tab', { active: activeTab === 'transcript' }]"
           @click="activeTab = 'transcript'"
+          v-if="note.transcript"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -289,8 +301,20 @@ function changeVolume(event) {
           Transkription
         </button>
         <button 
+          :class="['tab', { active: activeTab === 'manual_notes' }]"
+          @click="activeTab = 'manual_notes'"
+          v-if="note.manual_notes"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+          Notizen
+        </button>
+        <button 
           :class="['tab', { active: activeTab === 'summary' }]"
           @click="activeTab = 'summary'"
+          v-if="note.summary"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -308,10 +332,31 @@ function changeVolume(event) {
         <div v-if="activeTab === 'transcript'" class="content-panel fade-in">
           <div class="panel-header">
             <h3>Vollständige Transkription</h3>
-            <span class="word-count">{{ note.transcript.split(' ').length }} Wörter</span>
+            <span v-if="note.transcript" class="word-count">{{ note.transcript.split(' ').length }} Wörter</span>
           </div>
           <div class="text-content">
-            {{ note.transcript }}
+            <div v-if="note.transcript">
+              {{ note.transcript }}
+            </div>
+            <div v-else class="empty-state">
+              <p>Keine Transkription vorhanden</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manuelle Notizen -->
+        <div v-if="activeTab === 'manual_notes'" class="content-panel fade-in">
+          <div class="panel-header">
+            <h3>Manuelle Notizen</h3>
+            <span v-if="note.manual_notes" class="word-count">{{ note.manual_notes.split(' ').length }} Wörter</span>
+          </div>
+          <div class="text-content">
+            <div v-if="note.manual_notes">
+              {{ note.manual_notes }}
+            </div>
+            <div v-else class="empty-state">
+              <p>Keine manuellen Notizen vorhanden</p>
+            </div>
           </div>
         </div>
 
@@ -327,7 +372,12 @@ function changeVolume(event) {
             </button>
           </div>
           <div class="text-content summary-content">
-            {{ note.summary }}
+            <div v-if="note.summary">
+              {{ note.summary }}
+            </div>
+            <div v-else class="empty-state">
+              <p>Keine Zusammenfassung vorhanden</p>
+            </div>
           </div>
         </div>
       </div>
@@ -655,6 +705,22 @@ function changeVolume(event) {
 .btn-sm {
   padding: 8px 16px;
   font-size: 0.9rem;
+}
+
+.manual-notes h4 {
+  color: var(--accent);
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--text-muted);
+}
+
+.empty-state p {
+  font-size: 1rem;
 }
 
 .text-content {

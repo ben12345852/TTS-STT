@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS notes (
     audio_data LONGBLOB,  -- Binärdaten (bis 4GB)
     audio_mime_type VARCHAR(100),
     audio_duration INT DEFAULT 0,
-    transcript TEXT,
+    transcript TEXT,  -- Automatisches Transkript von Audio
+    manual_notes TEXT,  -- Manuell eingegebene Notizen
     summary TEXT,
     status ENUM('recording', 'processing', 'completed', 'error') DEFAULT 'completed',
     INDEX idx_created_at (created_at)
