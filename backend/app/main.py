@@ -2,7 +2,6 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from database import db
-import os
 from datetime import datetime
 
 app = FastAPI(title="Sprach-Notizen API")
@@ -21,10 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
-
-# Upload-Ordner erstellen
-UPLOAD_DIR = "/app/uploads/audio"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @app.on_event("startup")
 async def startup():
@@ -45,11 +40,12 @@ def get_notes():
     """Alle Notizen abrufen"""
     query = """
         SELECT id, title, created_at, updated_at, 
-               audio_path, audio_duration, summary, status
+               audio_duration, summary, status
         FROM notes 
         ORDER BY created_at DESC
     """
     notes = db.fetch_all(query)
+    print(notes)
     return {"notes": notes}
 
 @app.get("/api/notes/{note_id}")
@@ -57,7 +53,7 @@ def get_note(note_id: int):
     """Eine Notiz abrufen"""
     query = """
         SELECT id, title, created_at, updated_at, 
-               audio_path, audio_duration, transcript, summary, status
+               audio_duration, audio_mime_type, transcript, summary, status
         FROM notes 
         WHERE id = %s
     """
@@ -75,30 +71,18 @@ async def create_note(
 ):
     """Neue Notiz erstellen mit Audio und/oder Text"""
     
-    audio_path = None
-    audio_mime_type = None
-    
-    # Audio-Datei speichern, falls vorhanden
+    # Audio-Datei verarbeiten, falls vorhanden
     if audio_file:
-        # Dateiname generieren
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = f"note-{timestamp}.webm"
-        file_path = os.path.join(UPLOAD_DIR, filename)
-        
-        # Datei speichern
-        with open(file_path, "wb") as f:
-            content = await audio_file.read()
-            f.write(content)
-        
-        audio_path = f"/uploads/audio/{filename}"
+        # Audio-Datei als Binärdaten lesen
+        audio_data = await audio_file.read()
         audio_mime_type = audio_file.content_type
         
-        # Audio in Datenbank als BLOB speichern
+        # Audio direkt in Datenbank als BLOB speichern
         query = """
             INSERT INTO notes (title, transcript, audio_data, audio_mime_type, audio_duration, status)
             VALUES (%s, %s, %s, %s, %s, 'processing')
         """
-        note_id = db.execute_query(query, (title, text_content or "", content, audio_mime_type, audio_duration))
+        note_id = db.execute_query(query, (title, text_content or "", audio_data, audio_mime_type, audio_duration))
     else:
         # Nur Text-Notiz
         query = """
@@ -112,7 +96,6 @@ async def create_note(
         "id": note_id,
         "title": title,
         "transcript": text_content,
-        "audio_path": audio_path,
         "audio_duration": audio_duration,
         "status": "processing" if audio_file else "completed"
     }
