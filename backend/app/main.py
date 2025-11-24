@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from typing import Optional
 from database import db
-from transcription import transcribe_audio, generate_summary
 from datetime import datetime
+import asyncio
+import functools
 
 app = FastAPI(title="Sprach-Notizen API")
 
@@ -145,7 +146,11 @@ async def create_note(
 def process_transcription(note_id: int, audio_data: bytes, mime_type: str):
     """
     Hintergrund-Task für Transkription und Zusammenfassung
+    Läuft in separatem Thread zur Vermeidung von Memory-Konflikten
     """
+    # Import hier, um Threading-Probleme zu vermeiden
+    from transcription import transcribe_audio, generate_summary
+    
     try:
         # 1. Audio transkribieren
         print(f"Starte Transkription für Notiz {note_id}...")
@@ -185,5 +190,10 @@ def process_transcription(note_id: int, audio_data: bytes, mime_type: str):
         
     except Exception as e:
         print(f"Fehler bei Verarbeitung von Notiz {note_id}: {e}")
+        import traceback
+        traceback.print_exc()
         query = "UPDATE notes SET status = 'error' WHERE id = %s"
-        db.execute_query(query, (note_id,))
+        try:
+            db.execute_query(query, (note_id,))
+        except Exception as db_error:
+            print(f"DB-Update-Fehler: {db_error}")

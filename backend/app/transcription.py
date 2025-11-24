@@ -1,13 +1,22 @@
 import os
 import io
 import tempfile
-import whisper
+import torch
+import gc
 from mistralai import Mistral
 
-# Whisper Modell laden (beim Start)
-print("Lade Whisper Modell...")
-whisper_model = whisper.load_model("base")
-print("Whisper Modell geladen!")
+# Whisper wird lazy geladen (nur wenn benötigt)
+whisper_model = None
+
+def get_whisper_model():
+    """Lazy loading des Whisper Modells"""
+    global whisper_model
+    if whisper_model is None:
+        import whisper
+        print("Lade Whisper Modell...")
+        whisper_model = whisper.load_model("base")
+        print("Whisper Modell geladen!")
+    return whisper_model
 
 # Mistral Client für Zusammenfassung
 mistral_client = Mistral(api_key=os.getenv("MISTRAL_API_KEY", ""))
@@ -23,6 +32,7 @@ def transcribe_audio(audio_data: bytes, mime_type: str = "audio/webm") -> dict:
     Returns:
         dict mit 'text' (Transkript) und 'language' (erkannte Sprache)
     """
+    temp_path = None
     try:
         # Datei-Extension basierend auf MIME-Type
         extension_map = {
@@ -40,30 +50,44 @@ def transcribe_audio(audio_data: bytes, mime_type: str = "audio/webm") -> dict:
             temp_file.write(audio_data)
             temp_path = temp_file.name
         
-        try:
-            # Whisper Transkription
-            result = whisper_model.transcribe(
+        # Whisper Modell laden
+        model = get_whisper_model()
+        
+        # Whisper Transkription mit Memory-Management
+        with torch.no_grad():  # Keine Gradienten berechnen (spart Memory)
+            result = model.transcribe(
                 temp_path,
                 language="de",  # Deutsch
-                fp16=False  # CPU-kompatibel
+                fp16=False,  # CPU-kompatibel
+                verbose=False  # Weniger Ausgaben
             )
-            
-            return {
-                'text': result["text"],
-                'language': result.get("language", "de")
-            }
-        finally:
-            # Temporäre Datei löschen
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+        
+        # Memory aufräumen
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        return {
+            'text': result["text"],
+            'language': result.get("language", "de")
+        }
         
     except Exception as e:
         print(f"Transkriptionsfehler: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             'text': None,
             'language': None,
             'error': str(e)
         }
+    finally:
+        # Temporäre Datei löschen
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                print(f"Fehler beim Löschen der Temp-Datei: {e}")
 
 
 def generate_summary(text: str) -> str:
