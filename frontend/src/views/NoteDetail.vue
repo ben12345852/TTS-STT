@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { notesApi } from '../api/notes'
 
@@ -19,6 +19,9 @@ const volume = ref(1)
 
 const note = ref(null)
 
+// Auto-Refresh für processing Status
+let refreshInterval = null
+
 // Notiz von API laden
 async function loadNote() {
   try {
@@ -26,6 +29,21 @@ async function loadNote() {
     error.value = null
     const data = await notesApi.getNote(route.params.id)
     note.value = data
+    
+    // Auto-Refresh starten wenn Status = processing
+    if (data.status === 'processing') {
+      if (!refreshInterval) {
+        refreshInterval = setInterval(() => {
+          loadNote()
+        }, 3000) // Alle 3 Sekunden aktualisieren
+      }
+    } else {
+      // Refresh stoppen wenn fertig
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+        refreshInterval = null
+      }
+    }
     
     // Standard-Tab setzen basierend auf verfügbaren Daten
     if (!activeTab.value) {
@@ -48,6 +66,13 @@ async function loadNote() {
 // Beim Component-Mount Notiz laden
 onMounted(() => {
   loadNote()
+})
+
+// Cleanup bei Component-Unmount
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
 })
 
 function goBack() {
@@ -222,6 +247,20 @@ function changeVolume(event) {
             <polyline points="12 6 12 12 16 14"></polyline>
           </svg>
           {{ formatDateTime(note.created_at) }}
+        </span>
+        
+        <!-- Processing Status Badge -->
+        <span v-if="note.status === 'processing'" class="meta-item status-processing">
+          <div class="processing-spinner"></div>
+          KI verarbeitet Audio...
+        </span>
+        <span v-else-if="note.status === 'error'" class="meta-item status-error">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          Verarbeitungsfehler
         </span>
       </div>
     </div>
@@ -426,6 +465,35 @@ function changeVolume(event) {
 .delete-btn:hover {
   background-color: var(--danger);
   color: white;
+}
+
+.status-processing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.status-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.processing-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .note-info {
