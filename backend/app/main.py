@@ -1,8 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from typing import Optional
 from database import db
+from transcription import transcribe_audio, generate_summary
 from datetime import datetime
 
 app = FastAPI(title="Sprach-Notizen API")
@@ -98,6 +99,7 @@ def get_note_audio(note_id: int):
 
 @app.post("/api/notes")
 async def create_note(
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     text_content: Optional[str] = Form(None),
     audio_duration: Optional[int] = Form(0),
@@ -118,6 +120,10 @@ async def create_note(
             VALUES (%s, %s, %s, %s, %s, 'processing')
         """
         note_id = db.execute_query(query, (title, text_content or "", audio_data, audio_mime_type, audio_duration))
+        
+        # Transkription im Hintergrund ausführen
+        background_tasks.add_task(process_transcription, note_id, audio_data, audio_mime_type)
+        
     else:
         # Nur Text-Notiz - in manual_notes speichern
         query = """
@@ -134,3 +140,50 @@ async def create_note(
         "audio_duration": audio_duration,
         "status": "processing" if audio_file else "completed"
     }
+
+
+def process_transcription(note_id: int, audio_data: bytes, mime_type: str):
+    """
+    Hintergrund-Task für Transkription und Zusammenfassung
+    """
+    try:
+        # 1. Audio transkribieren
+        print(f"Starte Transkription für Notiz {note_id}...")
+        result = transcribe_audio(audio_data, mime_type)
+        
+        if result.get('error') or not result.get('text'):
+            # Fehler bei Transkription
+            query = "UPDATE notes SET status = 'error' WHERE id = %s"
+            db.execute_query(query, (note_id,))
+            print(f"Transkriptionsfehler für Notiz {note_id}: {result.get('error')}")
+            return
+        
+        transcript = result['text']
+        
+        # 2. Zusammenfassung generieren
+        print(f"Generiere Zusammenfassung für Notiz {note_id}...")
+        summary = generate_summary(transcript)
+        
+        # 3. Datenbank aktualisieren
+        if summary:
+            query = """
+                UPDATE notes 
+                SET transcript = %s, summary = %s, status = 'completed'
+                WHERE id = %s
+            """
+            db.execute_query(query, (transcript, summary, note_id))
+        else:
+            # Nur Transkript, keine Zusammenfassung
+            query = """
+                UPDATE notes 
+                SET transcript = %s, status = 'completed'
+                WHERE id = %s
+            """
+            db.execute_query(query, (transcript, note_id))
+        
+        print(f"Transkription für Notiz {note_id} abgeschlossen")
+        
+    except Exception as e:
+        print(f"Fehler bei Verarbeitung von Notiz {note_id}: {e}")
+        query = "UPDATE notes SET status = 'error' WHERE id = %s"
+        db.execute_query(query, (note_id,))

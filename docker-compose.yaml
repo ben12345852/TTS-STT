@@ -13,6 +13,7 @@ services:
       - DB_USER=root
       - DB_PASSWORD=example
       - DB_NAME=notes
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     depends_on:
       - db
     networks:

@@ -2,3 +2,8 @@ fastapi
 uvicorn[standard]
 mysql-connector-python
 python-dotenv
+openai-whisper
+python-multipart
+torch
+transformers
+mistralai
