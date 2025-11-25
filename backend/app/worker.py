@@ -16,8 +16,7 @@ def process_note(note_id: int, audio_data: bytes, mime_type: str):
         # 1. Audio transkribieren
         print(f"📝 Transkribiere Audio...")
         result = transcribe_audio(audio_data, mime_type)
-        
-        if result.get('error') or not result.get('text'):
+        if result.get('error'):
             print(f"❌ Transkriptionsfehler: {result.get('error')}")
             query = "UPDATE notes SET status = 'error' WHERE id = %s"
             db.execute_query(query, (note_id,))
@@ -80,7 +79,7 @@ def worker_loop():
             query = """
                 SELECT id, audio_data, audio_mime_type 
                 FROM notes 
-                WHERE status = 'processing' 
+                WHERE status = 'processing' or status = 'error'
                 ORDER BY created_at ASC 
                 LIMIT 1
             """

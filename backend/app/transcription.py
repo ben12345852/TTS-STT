@@ -13,9 +13,7 @@ def get_whisper_model():
     global whisper_model
     if whisper_model is None:
         import whisper
-        print("Lade Whisper Modell...")
         whisper_model = whisper.load_model("base")
-        print("Whisper Modell geladen!")
     return whisper_model
 
 # Mistral Client für Zusammenfassung
@@ -103,10 +101,8 @@ def generate_summary(text: str) -> str:
     """
     # Prüfen ob Mistral API Key vorhanden
     if not os.getenv("MISTRAL_API_KEY"):
-        # Einfache Zusammenfassung ohne API
         lines = text.split('\n')
-        if len(text) > 200:
-            return f"**Zusammenfassung:**\n\n{text[:200]}..."
+        print("Keine Mistral API Key gefunden, einfache Zusammenfassung wird verwendet.")
         return f"**Zusammenfassung:**\n\n{text}"
     
     try:

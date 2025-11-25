@@ -4,8 +4,12 @@ from fastapi.responses import Response
 from typing import Optional
 from database import db
 from datetime import datetime
+import threading
 
 app = FastAPI(title="Sprach-Notizen API")
+
+# Worker-Thread-Referenz
+worker_thread = None
 
 # CORS für Frontend - MUSS vor den Routes kommen
 app.add_middleware(
@@ -24,13 +28,23 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    """Beim Start: Datenbank verbinden"""
+    """Beim Start: Datenbank verbinden und Worker starten"""
+    global worker_thread
+    
     db.connect()
+    
+    # Worker in separatem Thread starten
+    if worker_thread is None or not worker_thread.is_alive():
+        from worker import worker_loop
+        worker_thread = threading.Thread(target=worker_loop, daemon=True)
+        worker_thread.start()
+        print("🚀 Worker-Thread gestartet")
 
 @app.on_event("shutdown")
 async def shutdown():
     """Beim Beenden: Datenbank trennen"""
     db.disconnect()
+    print("👋 API wird heruntergefahren")
 
 @app.get("/")
 def root():
