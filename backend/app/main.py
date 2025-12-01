@@ -153,3 +153,19 @@ async def create_note(
         "status": "processing" if audio_file else "completed"
     }
 
+@app.delete("/api/notes/{note_id}")
+def delete_note(note_id: int):
+    """Notiz löschen"""
+    # Prüfen, ob Notiz existiert
+    check_query = "SELECT id FROM notes WHERE id = %s"
+    note = db.fetch_one(check_query, (note_id,))
+    
+    if not note:
+        return {"error": "Notiz nicht gefunden"}, 404
+    
+    # Notiz löschen
+    delete_query = "DELETE FROM notes WHERE id = %s"
+    db.execute_query(delete_query, (note_id,))
+    
+    print(f"🗑️ Notiz {note_id} gelöscht")
+    return {"message": "Notiz erfolgreich gelöscht", "id": note_id}

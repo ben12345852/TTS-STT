@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { notesApi } from '../api/notes'
 import { marked } from 'marked'
+import DeleteConfirmModal from '../components/DeleteConfirmModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -19,6 +20,7 @@ const duration = ref(0)
 const volume = ref(1)
 
 const note = ref(null)
+const showDeleteModal = ref(false)
 
 // Computed property für Markdown-Rendering
 const summaryHtml = computed(() => {
@@ -108,16 +110,17 @@ function editNote() {
 }
 
 function deleteNote() {
-  // TODO: Löschen implementieren
-  if (confirm('Notiz wirklich löschen?')) {
-    notesApi.deleteNote(route.params.id)
-      .then(() => {
-        router.push('/')
-      })
-      .catch(err => {
-        console.error('Fehler beim Löschen:', err)
-        alert('Fehler beim Löschen der Notiz')
-      })
+  showDeleteModal.value = true
+}
+
+async function confirmDelete() {
+  try {
+    await notesApi.deleteNote(route.params.id)
+    router.push('/')
+  } catch (err) {
+    console.error('Fehler beim Löschen:', err)
+    error.value = 'Fehler beim Löschen der Notiz'
+    showDeleteModal.value = false
   }
 }
 
@@ -427,6 +430,13 @@ function changeVolume(event) {
       </div>
     </div>
     </template>
+    
+    <!-- Delete Confirmation Modal -->
+    <DeleteConfirmModal 
+      v-if="showDeleteModal"
+      @close="showDeleteModal = false"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
 
@@ -799,12 +809,13 @@ function changeVolume(event) {
 .text-content {
   color: var(--text-secondary);
   font-size: 1.05rem;
-  line-height: 1;
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 
 .summary-content {
   font-weight: 400;
+  line-height: 1;
 }
 
 /* Markdown Content Styling */
