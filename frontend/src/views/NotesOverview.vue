@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { notesApi } from '../api/notes'
 import CreateNoteModal from '../components/CreateNoteModal.vue'
+import { marked } from 'marked'
 
 const router = useRouter()
 
@@ -90,6 +91,12 @@ function searchNotes() {
     (note.summary && note.summary.toLowerCase().includes(query))
   )
 }
+
+// Convert markdown to HTML for summary preview
+function getSummaryHtml(summary) {
+  if (!summary) return ''
+  return marked(summary)
+}
 </script>
 
 <template>
@@ -153,7 +160,7 @@ function searchNotes() {
           <span class="note-date">{{ formatDate(note.created_at) }}</span>
         </div>
         
-        <p class="note-summary">{{ note.summary }}</p>
+        <div class="note-summary markdown-preview" v-html="getSummaryHtml(note.summary)"></div>
         
         <div class="note-footer">
           <div class="note-duration">
@@ -245,9 +252,10 @@ function searchNotes() {
 
 .notes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 320px));
   gap: 1.5rem;
   animation: fadeIn 0.4s ease;
+  justify-content: start;
 }
 
 .note-card {
@@ -255,6 +263,9 @@ function searchNotes() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
+  min-height: 200px;
+  max-height: 250px;
 }
 
 .note-header {
@@ -284,8 +295,90 @@ function searchNotes() {
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Markdown Preview Styles */
+.markdown-preview :deep(h1),
+.markdown-preview :deep(h2),
+.markdown-preview :deep(h3),
+.markdown-preview :deep(h4),
+.markdown-preview :deep(h5),
+.markdown-preview :deep(h6) {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 0.25rem 0;
+  line-height: 1.2;
+}
+
+.markdown-preview :deep(h1) { font-size: 1.2rem; }
+.markdown-preview :deep(h2) { font-size: 1.1rem; }
+.markdown-preview :deep(h3) { font-size: 1rem; }
+.markdown-preview :deep(h4) { font-size: 0.95rem; }
+
+.markdown-preview :deep(p) {
+  margin: 0.25rem 0;
+}
+
+.markdown-preview :deep(ul),
+.markdown-preview :deep(ol) {
+  margin-left: 1.2rem;
+  margin: 0.25rem 0;
+}
+
+.markdown-preview :deep(li) {
+  margin-bottom: 0.1rem;
+}
+
+.markdown-preview :deep(code) {
+  background-color: var(--bg-tertiary);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.markdown-preview :deep(pre) {
+  background-color: var(--bg-tertiary);
+  padding: 0.4rem;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 0.25rem 0;
+}
+
+.markdown-preview :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-preview :deep(blockquote) {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.5rem;
+  margin: 0.25rem 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.markdown-preview :deep(strong) {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-preview :deep(em) {
+  font-style: italic;
+}
+
+.markdown-preview :deep(a) {
+  color: var(--accent-light);
+  text-decoration: none;
+}
+
+.markdown-preview :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.25rem 0;
 }
 
 .note-footer {

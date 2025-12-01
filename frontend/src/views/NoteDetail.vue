@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { notesApi } from '../api/notes'
+import { marked } from 'marked'
 
 const router = useRouter()
 const route = useRoute()
@@ -18,6 +19,12 @@ const duration = ref(0)
 const volume = ref(1)
 
 const note = ref(null)
+
+// Computed property für Markdown-Rendering
+const summaryHtml = computed(() => {
+  if (!note.value?.summary) return ''
+  return marked(note.value.summary)
+})
 
 // Auto-Refresh für processing Status
 let refreshInterval = null
@@ -411,9 +418,7 @@ function changeVolume(event) {
             </button>
           </div>
           <div class="text-content summary-content">
-            <div v-if="note.summary">
-              {{ note.summary }}
-            </div>
+            <div v-if="note.summary" class="markdown-content" v-html="summaryHtml"></div>
             <div v-else class="empty-state">
               <p>Keine Zusammenfassung vorhanden</p>
             </div>
@@ -794,11 +799,122 @@ function changeVolume(event) {
 .text-content {
   color: var(--text-secondary);
   font-size: 1.05rem;
-  line-height: 1.8;
+  line-height: 1;
   white-space: pre-wrap;
 }
 
 .summary-content {
   font-weight: 400;
+}
+
+/* Markdown Content Styling */
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3),
+.markdown-content :deep(h4),
+.markdown-content :deep(h5),
+.markdown-content :deep(h6) {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+  line-height: 1.3;
+}
+
+.markdown-content :deep(h1) { font-size: 2rem; }
+.markdown-content :deep(h2) { font-size: 1.5rem; }
+.markdown-content :deep(h3) { font-size: 1.25rem; }
+.markdown-content :deep(h4) { font-size: 1.1rem; }
+
+.markdown-content :deep(p) {
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
+  margin-left: 1.5rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content :deep(li) {
+  margin-bottom: 0;
+  line-height: 1.5;
+}
+
+.markdown-content :deep(li + li) {
+  margin-top: 0.15rem;
+}
+
+.markdown-content :deep(code) {
+  background-color: var(--bg-tertiary);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.95em;
+}
+
+.markdown-content :deep(pre) {
+  background-color: var(--bg-tertiary);
+  padding: 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-content :deep(blockquote) {
+  border-left: 4px solid var(--accent);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.markdown-content :deep(a) {
+  color: var(--accent-light);
+  text-decoration: none;
+}
+
+.markdown-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-content :deep(strong) {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-content :deep(em) {
+  font-style: italic;
+}
+
+.markdown-content :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1rem 0;
+}
+
+.markdown-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content :deep(th),
+.markdown-content :deep(td) {
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.markdown-content :deep(th) {
+  background-color: var(--bg-tertiary);
+  font-weight: 600;
 }
 </style>
