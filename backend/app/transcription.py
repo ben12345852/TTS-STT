@@ -4,6 +4,9 @@ import tempfile
 import torch
 import gc
 from mistralai import Mistral
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # Whisper wird lazy geladen (nur wenn benötigt)
 whisper_model = None
@@ -101,32 +104,25 @@ def generate_summary(text: str) -> str:
     """
     # Prüfen ob Mistral API Key vorhanden
     if not os.getenv("MISTRAL_API_KEY"):
-        lines = text.split('\n')
         print("Keine Mistral API Key gefunden, einfache Zusammenfassung wird verwendet.")
-        return f"**Zusammenfassung:**\n\n{text}"
-    
+        return "Kein API Key"
     try:
         response = mistral_client.chat.complete(
             model="mistral-small-latest",
             messages=[
                 {
                     "role": "system",
-                    "content": "Du bist ein Assistent, der Notizen zusammenfasst. Erstelle eine prägnante Zusammenfassung in Stichpunkten mit Markdown-Formatierung auf Deutsch."
+                    "content": "Du bist ein Assistent, der Notizen zusammenfasst. Erstelle eine prägnante Zusammenfassung in Stichpunkten mit Markdown-Formatierung auf Deutsch. Gebe dabei nur die Zusammenfassung zurück, ohne zusätzliche Erklärungen oder Overhead."
                 },
                 {
                     "role": "user",
-                    "content": f"Fasse folgende Notiz zusammen:\n\n{text}"
+                    "content": text
                 }
-            ],
-            temperature=0.3,
-            max_tokens=500
+            ]
         )
         
         return response.choices[0].message.content
         
     except Exception as e:
         print(f"Zusammenfassungsfehler: {e}")
-        # Fallback auf einfache Zusammenfassung
-        if len(text) > 200:
-            return f"**Zusammenfassung:**\n\n{text[:200]}..."
-        return f"**Zusammenfassung:**\n\n{text}"
+        return "Error"
