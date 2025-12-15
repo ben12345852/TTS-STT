@@ -1,12 +1,20 @@
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from typing import Optional
+from pydantic import BaseModel
 from database import db
 from datetime import datetime
 import threading
 
 app = FastAPI(title="Sprach-Notizen API")
+
+# Pydantic Model für Update-Request
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    transcript: Optional[str] = None
+    summary: Optional[str] = None
+    manual_notes: Optional[str] = None
 
 # Worker-Thread-Referenz
 worker_thread = None
@@ -169,3 +177,49 @@ def delete_note(note_id: int):
     
     print(f"🗑️ Notiz {note_id} gelöscht")
     return {"message": "Notiz erfolgreich gelöscht", "id": note_id}
+
+@app.put("/api/notes/{note_id}")
+async def update_note(note_id: int, note_data: NoteUpdate):
+    """Notiz aktualisieren"""
+    # Prüfen, ob Notiz existiert
+    check_query = "SELECT id FROM notes WHERE id = %s"
+    note = db.fetch_one(check_query, (note_id,))
+    
+    if not note:
+        return {"error": "Notiz nicht gefunden"}, 404
+    
+    # Update-Query dynamisch erstellen basierend auf übergebenen Feldern
+    update_fields = []
+    values = []
+    
+    if note_data.title is not None:
+        update_fields.append("title = %s")
+        values.append(note_data.title)
+    
+    if note_data.transcript is not None:
+        update_fields.append("transcript = %s")
+        values.append(note_data.transcript)
+    
+    if note_data.summary is not None:
+        update_fields.append("summary = %s")
+        values.append(note_data.summary)
+    
+    if note_data.manual_notes is not None:
+        update_fields.append("manual_notes = %s")
+        values.append(note_data.manual_notes)
+    
+    # updated_at immer aktualisieren
+    update_fields.append("updated_at = NOW()")
+    
+    if len(values) == 0:
+        return {"error": "Keine Felder zum Aktualisieren angegeben"}, 400
+    
+    # Query ausführen
+    values.append(note_id)
+    update_query = f"UPDATE notes SET {', '.join(update_fields)} WHERE id = %s"
+    db.execute_query(update_query, tuple(values))
+    
+    print(f"✏️ Notiz {note_id} aktualisiert")
+    
+    # Aktualisierte Notiz zurückgeben
+    return get_note(note_id)

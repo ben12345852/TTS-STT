@@ -17,10 +17,13 @@ const audioElement = ref(null)
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
-const volume = ref(1)
 
 const note = ref(null)
 const showDeleteModal = ref(false)
+const isEditing = ref(false)
+const editedTitle = ref('')
+const editedTranscript = ref('')
+const editedSummary = ref('')
 
 // Computed property für Markdown-Rendering
 const summaryHtml = computed(() => {
@@ -99,14 +102,37 @@ function formatDateTime(dateString) {
   })
 }
 
-function playAudio() {
-  // TODO: TTS implementieren
-  console.log('Audio abspielen')
+function editNote() {
+  if (!isEditing.value) {
+    // Edit-Modus aktivieren
+    isEditing.value = true
+    editedTitle.value = note.value.title
+    editedTranscript.value = note.value.transcript || ''
+    editedSummary.value = note.value.summary || ''
+  }
 }
 
-function editNote() {
-  // TODO: Edit-Modus implementieren
-  console.log('Notiz bearbeiten')
+async function saveEdit() {
+  try {
+    const updatedData = {
+      title: editedTitle.value,
+      transcript: editedTranscript.value,
+      summary: editedSummary.value
+    }
+    await notesApi.updateNote(route.params.id, updatedData)
+    isEditing.value = false
+    await loadNote()
+  } catch (err) {
+    console.error('Fehler beim Speichern:', err)
+    error.value = 'Fehler beim Speichern der Änderungen'
+  }
+}
+
+function cancelEdit() {
+  isEditing.value = false
+  editedTitle.value = ''
+  editedTranscript.value = ''
+  editedSummary.value = ''
 }
 
 function deleteNote() {
@@ -122,11 +148,6 @@ async function confirmDelete() {
     error.value = 'Fehler beim Löschen der Notiz'
     showDeleteModal.value = false
   }
-}
-
-function exportNote() {
-  // TODO: Export-Dialog öffnen
-  console.log('Notiz exportieren')
 }
 
 // Audio Player Functions
@@ -176,14 +197,6 @@ function formatTime(seconds) {
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
-
-function changeVolume(event) {
-  const newVolume = parseFloat(event.target.value)
-  volume.value = newVolume
-  if (audioElement.value) {
-    audioElement.value.volume = newVolume
-  }
-}
 </script>
 
 <template>
@@ -218,38 +231,48 @@ function changeVolume(event) {
       </button>
 
       <div class="action-buttons">
-        <button class="btn btn-secondary" @click="playAudio" title="Zusammenfassung vorlesen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-          </svg>
-        </button>
-        <button class="btn btn-secondary" @click="editNote" title="Bearbeiten">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-          </svg>
-        </button>
-        <button class="btn btn-secondary" @click="exportNote" title="Exportieren">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-        </button>
-        <button class="btn btn-secondary delete-btn" @click="deleteNote" title="Löschen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-        </button>
+        <template v-if="isEditing">
+          <button class="btn btn-primary" @click="saveEdit" title="Speichern">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Speichern
+          </button>
+          <button class="btn btn-secondary" @click="cancelEdit" title="Abbrechen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            Abbrechen
+          </button>
+        </template>
+        <template v-else>
+          <button class="btn btn-secondary" @click="editNote" title="Bearbeiten">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+          <button class="btn btn-secondary delete-btn" @click="deleteNote" title="Löschen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </template>
       </div>
     </div>
 
     <!-- Note Info -->
     <div class="note-info">
-      <h1 class="note-title-detail">{{ note.title }}</h1>
+      <h1 v-if="!isEditing" class="note-title-detail">{{ note.title }}</h1>
+      <input 
+        v-else 
+        v-model="editedTitle" 
+        type="text" 
+        class="edit-title-input"
+        placeholder="Titel eingeben..."
+      />
       <div class="note-meta">
         <span class="meta-item">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -312,23 +335,6 @@ function changeVolume(event) {
         </div>
 
         <div class="time-display">{{ formatTime(duration) }}</div>
-
-        <div class="volume-control">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path v-if="volume > 0.5" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            <path v-if="volume > 0" d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-          </svg>
-          <input 
-            type="range" 
-            min="0" 
-            max="1" 
-            step="0.01" 
-            :value="volume"
-            @input="changeVolume"
-            class="volume-slider"
-          />
-        </div>
       </div>
     </div>
 
@@ -381,10 +387,18 @@ function changeVolume(event) {
         <div v-if="activeTab === 'transcript'" class="content-panel fade-in">
           <div class="panel-header">
             <h3>Vollständige Transkription</h3>
-            <span v-if="note.transcript" class="word-count">{{ note.transcript.split(' ').length }} Wörter</span>
+            <span v-if="!isEditing && note.transcript" class="word-count">{{ note.transcript.split(' ').length }} Wörter</span>
+            <span v-if="isEditing && editedTranscript" class="word-count">{{ editedTranscript.split(' ').length }} Wörter</span>
           </div>
           <div class="text-content">
-            <div v-if="note.transcript">
+            <textarea
+              v-if="isEditing"
+              v-model="editedTranscript"
+              class="edit-notes-textarea"
+              placeholder="Transkription eingeben..."
+              rows="15"
+            ></textarea>
+            <div v-else-if="note.transcript">
               {{ note.transcript }}
             </div>
             <div v-else class="empty-state">
@@ -397,10 +411,18 @@ function changeVolume(event) {
         <div v-if="activeTab === 'manual_notes'" class="content-panel fade-in">
           <div class="panel-header">
             <h3>Manuelle Notizen</h3>
-            <span v-if="note.manual_notes" class="word-count">{{ note.manual_notes.split(' ').length }} Wörter</span>
+            <span v-if="!isEditing && note.manual_notes" class="word-count">{{ note.manual_notes.split(' ').length }} Wörter</span>
+            <span v-if="isEditing && editedManualNotes" class="word-count">{{ editedManualNotes.split(' ').length }} Wörter</span>
           </div>
           <div class="text-content">
-            <div v-if="note.manual_notes">
+            <textarea
+              v-if="isEditing"
+              v-model="editedManualNotes"
+              class="edit-notes-textarea"
+              placeholder="Notizen eingeben..."
+              rows="10"
+            ></textarea>
+            <div v-else-if="note.manual_notes">
               {{ note.manual_notes }}
             </div>
             <div v-else class="empty-state">
@@ -413,15 +435,16 @@ function changeVolume(event) {
         <div v-if="activeTab === 'summary'" class="content-panel fade-in">
           <div class="panel-header">
             <h3>KI-Zusammenfassung</h3>
-            <button class="btn btn-primary btn-sm" @click="playAudio">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-              Vorlesen
-            </button>
           </div>
           <div class="text-content summary-content">
-            <div v-if="note.summary" class="markdown-content" v-html="summaryHtml"></div>
+            <textarea
+              v-if="isEditing"
+              v-model="editedSummary"
+              class="edit-notes-textarea"
+              placeholder="Zusammenfassung eingeben..."
+              rows="15"
+            ></textarea>
+            <div v-else-if="note.summary" class="markdown-content" v-html="summaryHtml"></div>
             <div v-else class="empty-state">
               <p>Keine Zusammenfassung vorhanden</p>
             </div>
@@ -711,6 +734,45 @@ function changeVolume(event) {
 .volume-slider::-moz-range-thumb:hover {
   background: var(--accent-light);
   transform: scale(1.2);
+}
+
+/* Edit Mode Styles */
+.edit-title-input {
+  width: 100%;
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+  padding: 0.5rem;
+  background-color: var(--bg-secondary);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.edit-title-input:focus {
+  outline: none;
+  border-color: var(--accent-light);
+}
+
+.edit-notes-textarea {
+  width: 100%;
+  min-height: 300px;
+  padding: 1rem;
+  background-color: var(--bg-tertiary);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1.6;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.edit-notes-textarea:focus {
+  outline: none;
+  border-color: var(--accent-light);
 }
 
 .tabs-container {
