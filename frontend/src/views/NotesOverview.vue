@@ -252,10 +252,9 @@ function getSummaryHtml(summary) {
 
 .notes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 320px));
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   gap: 1.5rem;
   animation: fadeIn 0.4s ease;
-  justify-content: start;
 }
 
 .note-card {
